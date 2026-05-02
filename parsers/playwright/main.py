@@ -68,6 +68,17 @@ def parse_product(url: str):
                 print("Warning: Photos not found.")
                 product_data['all_photos'] = []
 
+            if not product_data.get('all_photos'):
+                try:
+                    fallback_xpath = '//img[contains(@id, "product_main_image")]'
+                    page.wait_for_selector(fallback_xpath, state='attached', timeout=3000)
+                    fallback_img = page.locator(fallback_xpath).first
+                    src = fallback_img.get_attribute('src')
+                    if src:
+                        product_data['all_photos'] = [src]
+                except PlaywrightTimeoutError:
+                    print("Warning: Fallback main photo not found.")
+
             try:
 
                 page.wait_for_selector(MULTI_XPATHS['all_product_details'], state='attached', timeout=5000)
@@ -102,7 +113,7 @@ def search_product_and_parse(query: str):
         try:
             page.goto("https://brain.com.ua/", timeout=60000)
 
-            search_input_xpath = '(//input[contains(@class, "quick-search-input")])[2]'
+            search_input_xpath = '//div[contains(@class, "header-bottom-in")]//input[contains(@class, "quick-search-input")]'
             page.wait_for_selector(search_input_xpath, state='visible', timeout=10000)
             page.fill(search_input_xpath, query)
             time.sleep(1)

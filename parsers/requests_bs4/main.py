@@ -62,6 +62,14 @@ def parse_product(url: str):
 
         product_data['all_photos'] = photos_list
 
+        if not product_data.get('all_photos'):
+            fallback_img = soup.select_one('img#product_main_image')
+            if fallback_img:
+                src = fallback_img.get('src') or fallback_img.get('data-src') or fallback_img.get('data-lazy')
+                if src:
+                    product_data['all_photos'] = [src]
+
+        # 3. Збираємо характеристики
         details_dict = {}
         for item in soup.select('#br-characteristics .br-pr-chr-item'):
             spans = item.find_all('span')

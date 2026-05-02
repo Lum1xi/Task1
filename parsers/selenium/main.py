@@ -73,32 +73,46 @@ def parse_product(url: str):
             print("Warning: Photos not found.")
             product_data['all_photos'] = []
 
-        try:
+        if not product_data.get('all_photos'):
+            try:
+                fallback_xpath = '//img[contains(@id, "product_main_image")]'
+                fallback_img = wait.until(EC.presence_of_element_located((By.XPATH, fallback_xpath)))
+                src = fallback_img.get_attribute('src')
+                if src:
+                    product_data['all_photos'] = [src]
+            except TimeoutException:
+                print("Warning: Fallback main photo not found.")
 
-            detail_elements = wait.until(
-                EC.presence_of_all_elements_located((By.XPATH, MULTI_XPATHS['all_product_details'])))
+        try:
+            # 4. Збираємо характеристики
+            details_elements = driver.find_elements(By.XPATH, MULTI_XPATHS['all_product_details'])
             details_dict = {}
-            for i in range(0, len(detail_elements), 2):
-                key = detail_elements[i].text.strip()
-                val = detail_elements[i + 1].text.strip() if i + 1 < len(detail_elements) else ""
-                if key:
-                    details_dict[key] = val
+            for i in range(0, len(details_elements), 2):
+                k = details_elements[i].text.strip()
+                v = details_elements[i+1].text.strip() if i+1 < len(details_elements) else ""
+                if k:
+                    details_dict[k] = v
             product_data['all_product_details'] = details_dict
-        except TimeoutException:
-            print("Warning: Product details not found.")
+        except Exception as e:
+            print(f"Warning: Could not extract details: {e}")
             product_data['all_product_details'] = {}
 
         return product_data
 
     except Exception as e:
-        print(f"An critical error occurred: {e}")
+        print(f"A critical error occurred: {e}")
         return None
-
     finally:
         driver.quit()
 
 
 def search_product_and_parse(query: str):
+    """
+    Функція для пошуку продукту за запитом та парсингу його даних.
+
+    :param query: Запит для пошуку продукту.
+    :return: Словник з даними про продукт або None у разі помилки.
+    """
     options = webdriver.ChromeOptions()
     options.add_argument("--start-maximized")
     driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), options=options)
@@ -108,7 +122,7 @@ def search_product_and_parse(query: str):
 
         driver.get("https://brain.com.ua/")
 
-        search_input_xpath = '(//input[contains(@class, "quick-search-input")])[2]'
+        search_input_xpath = '//div[contains(@class, "header-bottom-in")]//input[contains(@class, "quick-search-input")]'
         search_input = wait.until(EC.element_to_be_clickable((By.XPATH, search_input_xpath)))
         search_input.clear()
         search_input.send_keys(query)
