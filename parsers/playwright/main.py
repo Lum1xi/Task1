@@ -1,10 +1,8 @@
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 import time
 
+
 def parse_product(url: str):
-    """
-    Ця функція отримує URL сторінки продукту та парсить дані за допомогою Playwright та словника XPath-виразів.
-    """
     SINGLE_XPATHS = {
         'full_name': '//h1[contains(@class, "desktop-only-title")]',
         'color': '//span[text()="Колір"]/following-sibling::span/a',
@@ -25,16 +23,13 @@ def parse_product(url: str):
     product_data = {}
 
     with sync_playwright() as p:
-        # headless=False відкриває реальне вікно браузера. Змініть на True, якщо хочете фоновий режим.
         browser = p.chromium.launch(headless=False)
         context = browser.new_context(viewport={'width': 1920, 'height': 1080})
         page = context.new_page()
 
         try:
-            # Переходимо за URL
             page.goto(url, timeout=60000)
 
-            # --- Вирішення проблеми "Лінивого завантаження" ---
             page.evaluate("window.scrollTo(0, 800);")
             time.sleep(1)
             page.evaluate("window.scrollTo(0, 1500);")
@@ -42,14 +37,12 @@ def parse_product(url: str):
             tab_xpath = '//a[contains(text(), "Характеристики") or contains(@href, "#characteristics")]'
             try:
                 tab = page.wait_for_selector(tab_xpath, timeout=5000)
-                tab.click(force=True)  # force=True для кліку навіть якщо елемент частково перекритий
+                tab.click(force=True)
                 time.sleep(1)
             except PlaywrightTimeoutError:
                 print("Warning: Characteristics tab not found.")
-            # 1. Збираємо одиночні елементи
             for key, xpath in SINGLE_XPATHS.items():
                 try:
-                    # Чекаємо появи елемента в DOM
                     element = page.wait_for_selector(xpath, state='attached', timeout=5000)
                     val = element.inner_text().strip() if element else None
                     if key == 'reviews_count' and val:
@@ -62,9 +55,7 @@ def parse_product(url: str):
                     print(f"Warning: Element '{key}' not found.")
                     product_data[key] = "0" if key == 'reviews_count' else None
 
-            # 2. Збираємо всі фотографії
             try:
-                # Чекаємо хоча б одне фото
                 page.wait_for_selector(MULTI_XPATHS['all_photos'], state='attached', timeout=5000)
                 photo_elements = page.locator(MULTI_XPATHS['all_photos']).all()
                 photos_list = []
@@ -77,7 +68,6 @@ def parse_product(url: str):
                 print("Warning: Photos not found.")
                 product_data['all_photos'] = []
 
-            # 3. Збираємо характеристики
             try:
 
                 page.wait_for_selector(MULTI_XPATHS['all_product_details'], state='attached', timeout=5000)
@@ -85,7 +75,7 @@ def parse_product(url: str):
                 details_dict = {}
                 for i in range(0, len(detail_elements), 2):
                     k = detail_elements[i].inner_text().strip()
-                    v = detail_elements[i+1].inner_text().strip() if i+1 < len(detail_elements) else ""
+                    v = detail_elements[i + 1].inner_text().strip() if i + 1 < len(detail_elements) else ""
                     if k:
                         details_dict[k] = v
                 product_data['all_product_details'] = details_dict
@@ -102,9 +92,47 @@ def parse_product(url: str):
         finally:
             browser.close()
 
+
+def search_product_and_parse(query: str):
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=False)
+        context = browser.new_context(viewport={'width': 1920, 'height': 1080})
+        page = context.new_page()
+
+        try:
+            page.goto("https://brain.com.ua/", timeout=60000)
+
+            search_input_xpath = '(//input[contains(@class, "quick-search-input")])[2]'
+            page.wait_for_selector(search_input_xpath, state='visible', timeout=10000)
+            page.fill(search_input_xpath, query)
+            time.sleep(1)
+
+            page.press(search_input_xpath, 'Enter')
+
+            first_result_xpath = '(//div[contains(@class, "br-pr-block")]//a[contains(@class, "br-pr-title")] | //div[contains(@class, "product-wrapper")]//a)[1]'
+            page.wait_for_selector(first_result_xpath, state='attached', timeout=15000)
+
+            page.click(first_result_xpath, force=True)
+
+            page.wait_for_load_state('domcontentloaded')
+            time.sleep(3)
+
+            product_url = page.url
+        except Exception as e:
+            print(f"An error occurred during search: {e}")
+            product_url = None
+        finally:
+            browser.close()
+
+    if product_url:
+        return parse_product(product_url)
+    return None
+
+
 if __name__ == '__main__':
     test_url = "https://brain.com.ua/ukr/Mobilniy_telefon_Apple_iPhone_15_128GB_Pink-p1044351.html"
     data = parse_product(test_url)
     if data:
         import json
+
         print(json.dumps(data, indent=4, ensure_ascii=False))
