@@ -1,0 +1,27 @@
+# Python
+*.pyc
+*~
+__pycache__
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Django
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Playwright
+.playwright/
+
+# IDEs
+.idea/
+.vscode/
+*.swp
